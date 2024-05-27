@@ -4,12 +4,12 @@ import cloudinary.api
 import requests
 import os
 import re
-import bot
 import psycopg2
 from fuzzywuzzy import fuzz
 from fuzzywuzzy import process
 from psycopg2 import OperationalError
 from google.cloud import vision
+import bot
 
 # Configure your Cloudinary credentials
 cloudinary.config(

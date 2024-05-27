@@ -6,6 +6,8 @@ import io
 import os
 import utilities
 import psycopg2
+import asyncio
+from bot import start_bot
 
 app = FastAPI()
 
@@ -17,6 +19,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 @app.post("/upload/")
 async def upload_image(
@@ -82,5 +85,15 @@ def save_image(image_data, label):
         image_file.write(image_data)
     return file_path
 
+async def main():
+    # Create a task for the bot
+    bot_task = asyncio.create_task(start_bot())
+    # Start the FastAPI app
+    config = uvicorn.Config(app, host="127.0.0.1", port=8000)
+    server = uvicorn.Server(config)
+    await server.serve()
+    # Wait for the bot task to finish (it generally won't unless there's an error or shutdown)
+    await bot_task
+
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    asyncio.run(main())

@@ -20,7 +20,8 @@ intents.messages = True
 intents.guilds = True
 intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
-client = discord.Client()
+client = discord.Client(intents=intents)
+
 
 # set containers
 teams = []
@@ -28,6 +29,10 @@ teams = []
 @bot.event
 async def on_ready():
     print('ready')
+
+# Define a function to start the bot
+async def start_bot():
+    await bot.start(token)
 
 # command: !player
 @bot.command(name= 'player', help='Displays stats for a specified player.')
@@ -102,21 +107,6 @@ async def get_frauds(ctx):
     embed.add_field(name="KD Differential:", value=vals_str, inline=True)
     await ctx.send(embed=embed)
 
-
-
-
-# command: !odds
-@bot.command(name='odds', help='Calculates and displays odds for a match.')
-async def match_odds(ctx, *, matchInfo: str):
-
-    if len(teams) < 2:
-        await ctx.send("Less than 2 teams in memory")
-    else:
-        team1Name, team2Name = matchInfo.split()
-        team1 = find_team(team1Name)
-        team2 = find_team(team2Name)
-        odds = team1.get_score() - team2.get_score()
-        await ctx.send(odds)
 
 # command: !compare
 @bot.command(name='compare', help='Compare two players.')
@@ -210,14 +200,3 @@ async def upload_image(ctx):
             
     
     # send screenshot to the front end and process or whatever.
-
-
-
-def find_team(name: str):
-
-    for team in teams:
-        if team.get_name().lower() == name.lower():
-            return team
-    return None
-
-bot.run(token) 

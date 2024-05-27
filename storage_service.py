@@ -5,7 +5,7 @@ import aiohttp
 
 BUCKET_NAME = 'discord_imports'
 
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "C:/Users/ltper/PCKSTATS/prunners.json"
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "C:/Users/ltper/OneDrive/Documents/Packrunners/prunners.json"
 storage_client = storage.Client()
 bucket = storage_client.get_bucket(BUCKET_NAME)
 
