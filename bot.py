@@ -193,7 +193,7 @@ async def upload_image(ctx):
             try:
                 # Upload stream data to Google Cloud Storage
                 public_image_url = await storage_service.upload_stream_to_gcs(data, file_name_in_gcs)
-                web_tool_url = f"http://yourwebtool.com/edit?image={public_image_url}"
+                web_tool_url = f"https://scoreboardtool.netlify.app/?image={public_image_url}&user_id={user_id}"
                 await ctx.send(f"Edit your image here: {web_tool_url}")
             except Exception as e:
                 await ctx.send(f"Failed to upload image: {str(e)}")

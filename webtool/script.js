@@ -1,64 +1,60 @@
 document.addEventListener("DOMContentLoaded", function() {
-    let canvas = document.getElementById('canvas');
-    let ctx = canvas.getContext('2d');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';  // Set high-quality image smoothing
 
     let rectangles = [];
     let currentRect = null;
     let drag = false;
-    let imageLoaded = false;
-    let image = new Image();
 
-    function draw() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-
-        if (imageLoaded) {
-            ctx.strokeStyle = "red";  // Visible color for the rectangle borders
-            ctx.lineWidth = 2;
-
-            rectangles.forEach(rect => {
-                ctx.strokeRect(rect.startX, rect.startY, rect.w, rect.h);
-            });
-
-            if (currentRect) {
-                ctx.strokeRect(currentRect.startX, currentRect.startY, currentRect.w, currentRect.h);
-            }
-
-            ctx.globalAlpha = 0.2;  // Lower opacity for filled rectangles
-            ctx.fillStyle = "gray";
-            ctx.globalCompositeOperation = 'multiply';
-
-            rectangles.forEach(rect => {
-                ctx.fillRect(rect.startX, rect.startY, rect.w, rect.h);
-            });
-
-            if (currentRect) {
-                ctx.fillRect(currentRect.startX, currentRect.startY, currentRect.w, currentRect.h);
-            }
-
-            ctx.globalAlpha = 1.0;
-            ctx.globalCompositeOperation = 'source-over';  // Reset blend mode
-        }
+    // Function to draw image on canvas
+    function drawImageOnCanvas(imageUrl) {
+        const image = new Image();
+        image.onload = function() {
+            canvas.width = image.width;
+            canvas.height = image.height;
+            ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+            draw(); // Call draw function to ensure any pre-existing rectangles are drawn
+        };
+        image.src = imageUrl;
     }
 
-    document.getElementById('upload').addEventListener('change', function(e) {
-        const reader = new FileReader();
-        reader.onload = function(event) {
-            image.onload = function() {
-                canvas.width = image.width;
-                canvas.height = image.height;
-                imageLoaded = true;
-                rectangles = [];
-                console.log("Image loaded and rectangles array cleared.");
-                draw();
-            };
-            image.src = event.target.result;
-        };
-        reader.readAsDataURL(e.target.files[0]);
-    });
+    // Get image URL from URL parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const imageUrl = urlParams.get('image');
 
+    if (imageUrl) {
+        drawImageOnCanvas(imageUrl);
+    } else {
+        console.log("No image provided.");
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear the canvas first
+        // Since the image is drawn in drawImageOnCanvas, we do not redraw it here to avoid over-drawing
+
+        ctx.strokeStyle = "red";  // Visible color for the rectangle borders
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.2;  // Lower opacity for filled rectangles
+        ctx.fillStyle = "gray";
+        ctx.globalCompositeOperation = 'multiply';
+
+        rectangles.forEach(rect => {
+            ctx.strokeRect(rect.startX, rect.startY, rect.w, rect.h);
+            ctx.fillRect(rect.startX, rect.startY, rect.w, rect.h);
+        });
+
+        if (currentRect) {
+            ctx.strokeRect(currentRect.startX, currentRect.startY, currentRect.w, currentRect.h);
+            ctx.fillRect(currentRect.startX, currentRect.startY, currentRect.w, currentRect.h);
+        }
+
+        ctx.globalAlpha = 1.0;
+        ctx.globalCompositeOperation = 'source-over';  // Reset blend mode
+    }
+
+    // Handle mouse events for drawing rectangles
     canvas.addEventListener('mousedown', function(e) {
         currentRect = {
             startX: e.pageX - canvas.offsetLeft,
@@ -80,7 +76,7 @@ document.addEventListener("DOMContentLoaded", function() {
     });
 
     canvas.addEventListener('mousemove', function(e) {
-        if (drag && imageLoaded && currentRect) {
+        if (drag) {
             currentRect.w = (e.pageX - canvas.offsetLeft) - currentRect.startX;
             currentRect.h = (e.pageY - canvas.offsetTop) - currentRect.startY;
             draw();
