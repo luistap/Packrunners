@@ -2,59 +2,42 @@ document.addEventListener("DOMContentLoaded", function() {
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';  // Set high-quality image smoothing
+    ctx.imageSmoothingQuality = 'high';
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const imageUrl = urlParams.get('image');
 
     let rectangles = [];
-    let currentRect = null;
     let drag = false;
+    let currentRect = null;
 
-    // Function to draw image on canvas
-    function drawImageOnCanvas(imageUrl) {
+    function drawImageOnCanvas(imgUrl) {
         const image = new Image();
+
+        // Handle CORS
+        image.crossOrigin = "Anonymous"; 
+
         image.onload = function() {
             canvas.width = image.width;
             canvas.height = image.height;
-            ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-            draw(); // Call draw function to ensure any pre-existing rectangles are drawn
+            ctx.drawImage(image, 0, 0);
+            console.log("Image loaded and drawn on canvas.");
         };
-        image.src = imageUrl;
-    }
 
-    // Get image URL from URL parameters
-    const urlParams = new URLSearchParams(window.location.search);
-    const imageUrl = urlParams.get('image');
+        image.onerror = function() {
+            console.error("Failed to load image.");
+        };
+
+        image.src = imgUrl;
+    }
 
     if (imageUrl) {
         drawImageOnCanvas(imageUrl);
     } else {
-        console.log("No image provided.");
+        console.error("No image URL provided.");
     }
 
-    function draw() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear the canvas first
-        // Since the image is drawn in drawImageOnCanvas, we do not redraw it here to avoid over-drawing
-
-        ctx.strokeStyle = "red";  // Visible color for the rectangle borders
-        ctx.lineWidth = 2;
-        ctx.globalAlpha = 0.2;  // Lower opacity for filled rectangles
-        ctx.fillStyle = "gray";
-        ctx.globalCompositeOperation = 'multiply';
-
-        rectangles.forEach(rect => {
-            ctx.strokeRect(rect.startX, rect.startY, rect.w, rect.h);
-            ctx.fillRect(rect.startX, rect.startY, rect.w, rect.h);
-        });
-
-        if (currentRect) {
-            ctx.strokeRect(currentRect.startX, currentRect.startY, currentRect.w, currentRect.h);
-            ctx.fillRect(currentRect.startX, currentRect.startY, currentRect.w, currentRect.h);
-        }
-
-        ctx.globalAlpha = 1.0;
-        ctx.globalCompositeOperation = 'source-over';  // Reset blend mode
-    }
-
-    // Handle mouse events for drawing rectangles
+    // Event listeners for canvas drawing
     canvas.addEventListener('mousedown', function(e) {
         currentRect = {
             startX: e.pageX - canvas.offsetLeft,
@@ -65,21 +48,23 @@ document.addEventListener("DOMContentLoaded", function() {
         drag = true;
     });
 
-    canvas.addEventListener('mouseup', function() {
-        if (currentRect && currentRect.w !== 0 && currentRect.h !== 0) {
-            rectangles.push(currentRect);
-            console.log(`Rectangle added: (${currentRect.startX}, ${currentRect.startY}, ${currentRect.w}, ${currentRect.h})`);
-        }
-        currentRect = null;
-        drag = false;
-        draw();
-    });
-
     canvas.addEventListener('mousemove', function(e) {
         if (drag) {
             currentRect.w = (e.pageX - canvas.offsetLeft) - currentRect.startX;
             currentRect.h = (e.pageY - canvas.offsetTop) - currentRect.startY;
-            draw();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);  // Clear the canvas
+            ctx.drawImage(image, 0, 0, canvas.width, canvas.height);  // Redraw the image
+            ctx.strokeStyle = "red";
+            ctx.strokeRect(currentRect.startX, currentRect.startY, currentRect.w, currentRect.h);
+        }
+    });
+
+    canvas.addEventListener('mouseup', function() {
+        if (currentRect) {
+            rectangles.push(currentRect);
+            console.log("Rectangle added:", currentRect);
+            drag = false;
+            currentRect = null;
         }
     });
 
