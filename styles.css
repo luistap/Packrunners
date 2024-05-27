@@ -1,0 +1,55 @@
+/* styles.css */
+body {
+    font-family: 'Arial', sans-serif;
+    padding: 20px;
+    text-align: center;
+    background-color: #f4f4f4; /* Light grey background for better visibility */
+}
+
+.toolbar {
+    margin-bottom: 10px;
+}
+
+.instructions {
+    margin-bottom: 20px;
+    color: #333;
+}
+
+canvas {
+    border: 2px solid #666; /* More visible border color */
+    display: block;
+    margin: 20px auto; /* Increase margin for better focus */
+    background-color: #fff; /* White background to contrast with image and rectangles */
+}
+
+input[type="file"], button, select, input[type="number"] {
+    padding: 10px 20px;
+    margin-right: 10px;
+    font-size: 16px;
+    cursor: pointer;
+    border-radius: 5px; /* Uniform border radius */
+    border: 2px solid #ccc; /* Uniform border style */
+}
+
+.score-input {
+    display: inline-flex;
+    align-items: center; /* Align the label and input fields vertically */
+}
+
+.score-input label {
+    margin-right: 5px; /* Space between label and input */
+}
+
+.score-input input[type="number"] {
+    width: 60px; /* Fixed width for number inputs */
+    text-align: center; /* Center text inside input */
+}
+
+button, select {
+    background-color: #007BFF; /* A cheerful blue */
+    color: white;
+}
+
+button:hover, select:hover, input[type="number"]:hover {
+    background-color: #0056b3; /* Darker blue on hover for feedback */
+}

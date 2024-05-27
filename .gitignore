@@ -1,0 +1,6 @@
+# .gitignore content
+.env
+credentials.json
+config.json
+prunners.json
+packrunners.json
