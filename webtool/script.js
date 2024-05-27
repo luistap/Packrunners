@@ -130,6 +130,7 @@ document.addEventListener("DOMContentLoaded", function() {
         const match_type = document.getElementById('match-type-select').value;
         const scoreTeam1 = document.getElementById('score-team1').value;
         const scoreTeam2 = document.getElementById('score-team2').value;
+        const access_code = document.getElementById('access-code').value;
 
         if (!map || !match_type || scoreTeam1 === '' || scoreTeam2 === '') {
             alert('Please fill in all fields before submitting.');
@@ -140,7 +141,7 @@ document.addEventListener("DOMContentLoaded", function() {
         formData.append('map', map);
         formData.append('match_type', match_type)
         formData.append('final_score', final_score);
-        formData.append('access_code_input', access_code_input)
+        formData.append('access_code', access_code)
         console.log('All blobs added to formData');
         submitImage(formData);
     });

@@ -60,8 +60,6 @@ async def upload_image(
     print("Endpoint Hit: Received images for processing.")
     if access_code not in codes:
         raise HTTPException(status_code=403, detail="Invalid or expired access code.")
-    
-
     try:
         files = {
             "team1_names": team1_names,
