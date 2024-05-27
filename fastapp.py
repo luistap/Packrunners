@@ -4,11 +4,16 @@ import uvicorn
 from PIL import Image
 import io
 import os
+import datetime
 import utilities
 import psycopg2
+import time
 import asyncio
+from pydantic import BaseModel
 from bot import start_bot
 
+# define global instances
+codes = {}
 app = FastAPI()
 
 # Add CORS middleware for development flexibility
@@ -20,6 +25,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+class AccessCodeData(BaseModel):
+    user_id: str
+    access_code: str
+
+
+async def cleanup_codes(interval: int = 300):
+    while True:
+        current_time = datetime.datetime.now()
+        expired_keys = [key for key, val in codes.items() if val['expires'] < current_time]
+        for key in expired_keys:
+            del codes[key]
+        await asyncio.sleep(interval)
+
+
+@app.post("/store_access_code/")
+async def store_access_code(data: AccessCodeData):
+    expiration_time = datetime.datetime.now() + datetime.timedelta(minutes=5)
+    codes[data.access_code] = {'user_id': data.user_id, 'expires': expiration_time}
+    return {"message": "Access code stored"}
+
 
 @app.post("/upload/")
 async def upload_image(
@@ -27,11 +52,16 @@ async def upload_image(
     team2_names: UploadFile = File(...), 
     team1_stats: UploadFile = File(...), 
     team2_stats: UploadFile = File(...),
+    access_code: str = Form(...),
     map: str = Form(...),
     final_score: str = Form(...),
     match_type: str = Form(...)
 ):
     print("Endpoint Hit: Received images for processing.")
+    if access_code not in codes:
+        raise HTTPException(status_code=403, detail="Invalid or expired access code.")
+    
+
     try:
         files = {
             "team1_names": team1_names,
@@ -86,6 +116,8 @@ def save_image(image_data, label):
     return file_path
 
 async def main():
+
+    asyncio.create_task(cleanup_codes())
     # Create a task for the bot
     bot_task = asyncio.create_task(start_bot())
     # Start the FastAPI app

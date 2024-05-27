@@ -140,6 +140,7 @@ document.addEventListener("DOMContentLoaded", function() {
         formData.append('map', map);
         formData.append('match_type', match_type)
         formData.append('final_score', final_score);
+        formData.append('access_code_input', access_code_input)
         console.log('All blobs added to formData');
         submitImage(formData);
     });

@@ -122,7 +122,7 @@ def clean_board(scbd):
     return cleaned_scbd
     
 
-async def process_names(names, list_of_names):
+async def process_names(names, list_of_names, user_id):
 
     for name in names:
 
@@ -130,17 +130,17 @@ async def process_names(names, list_of_names):
         exact_match = get_exact_match(name, list_of_names)
         if not exact_match:
             # get next best match
-            fuzzy_match = get_fuzzy_match(name, list_of_names)
+            fuzzy_match = get_fuzzy_match(name, list_of_names, user_id)
             
 
-def get_fuzzy_match(name, list_of_names):
+def get_fuzzy_match(name, list_of_names, user_id):
 
     best_match, score = process.extractOne(name, list_of_names)
     if score >= HIGH_CONFIDENCE:
         return best_match
     elif LOW_CONFIDENCE <= score < HIGH_CONFIDENCE:
         # prompt user for selection
-        name = bot.prompt_correction()
+        name = bot.prompt_correction(user_id, name, )
     else:
         return name
 

@@ -22,7 +22,7 @@ canvas {
     background-color: #fff; /* White background to contrast with image and rectangles */
 }
 
-input[type="file"], button, select, input[type="number"] {
+input[type="file"], button, select, input[type="number"], input[type="text"] {
     padding: 10px 20px;
     margin-right: 10px;
     font-size: 16px;
@@ -31,18 +31,23 @@ input[type="file"], button, select, input[type="number"] {
     border: 2px solid #ccc; /* Uniform border style */
 }
 
-.score-input {
+.score-input, .access-code-input {
     display: inline-flex;
     align-items: center; /* Align the label and input fields vertically */
+    margin-bottom: 10px; /* Space between different input blocks */
 }
 
-.score-input label {
+.score-input label, .access-code-input label {
     margin-right: 5px; /* Space between label and input */
 }
 
-.score-input input[type="number"] {
+.score-input input[type="number"], .access-code-input input[type="text"] {
     width: 60px; /* Fixed width for number inputs */
     text-align: center; /* Center text inside input */
+}
+
+.access-code-input input[type="text"] {
+    width: auto; /* Allows text input to be wider */
 }
 
 button, select {
@@ -50,6 +55,6 @@ button, select {
     color: white;
 }
 
-button:hover, select:hover, input[type="number"]:hover {
+button:hover, select:hover, input[type="number"]:hover, input[type="text"]:hover {
     background-color: #0056b3; /* Darker blue on hover for feedback */
 }

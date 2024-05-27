@@ -9,6 +9,8 @@ import os
 import player as pl
 import asyncio
 import quickstart
+import secrets
+import datetime
 import aiohttp
 import storage_service
 
@@ -24,7 +26,6 @@ client = discord.Client(intents=intents)
 
 
 # set containers
-teams = []
 
 @bot.event
 async def on_ready():
@@ -144,59 +145,41 @@ async def streamer(ctx):
     await ctx.send("Want to become a streamer for the org?")
 
 
-# command: !mosscheck
-@bot.command(name='mosscheck', help='Queue a team for moss checking.')
-async def queue_moss(ctx, team_number= int):
 
-    # handle invalid team_number parameter
-    if not isinstance(team_number, int):
-        await ctx.send("Please enter a whole number.")
-    elif team_number > len(teams) or team_number < 1:
-        await ctx.send("Team number out of range.")
-    
-    # authenticate credentials
-    service = quickstart.auth_credentials()
-    await ctx.send(f"MOSS file submission window for Team {team_number} is now open. You have 15 minutes to upload your files.")
-    await asyncio.sleep(600)
-    # extract files
-    extracted_files = quickstart.get_log_files(service, team_number)
-    if len(extracted_files) >= 5:
-        # code for pos case
-        await ctx.send("idl")
-    else:
-        missing = 5 - len(extracted_files)
-        await ctx.send(f"MISSING {missing} MOSS FILES FOR TEAM {team_number}. POTENTIAL PENALTY INCOMING.")
     
     
     # time is up check that all files are present
 
-# command: !upload
-@bot.command(name='upload', help='Fetch a screenshot from users.')
+@bot.command(name='upload', help='Fetch a screenshot from users and provide an access code.')
 async def upload_image(ctx):
-    user_id = ctx.message.author.id
-    if not ctx.message.attachments:
-        await ctx.send("Please attach an image.")
+    if not ctx.author.guild_permissions.administrator:
+        await ctx.send("You do not have permission to perform this action.")
         return
 
-    attachment = ctx.message.attachments[0]
-    image_url = attachment.url
+    # Generate a temporary access code
+    access_code = secrets.token_urlsafe(8)  # Generates a secure random token
 
-    # Upload the image directly from URL to Google Cloud Storage
-    async with aiohttp.ClientSession() as session:
-        async with session.get(image_url) as response:
-            if response.status != 200:
-                await ctx.send("Failed to download image.")
-                return
-            # Read image as stream
-            data = await response.read()
-            file_name_in_gcs = f'images/{attachment.filename}'
-            try:
-                # Upload stream data to Google Cloud Storage
-                public_image_url = await storage_service.upload_stream_to_gcs(data, file_name_in_gcs)
-                web_tool_url = f"https://scoreboardtool.netlify.app/?image={public_image_url}&user_id={user_id}"
-                await ctx.send(f"Edit your image here: {web_tool_url}")
-            except Exception as e:
-                await ctx.send(f"Failed to upload image: {str(e)}")
-            
-    
-    # send screenshot to the front end and process or whatever.
+    # Send the access code to the user's DM
+    try:
+        await ctx.author.send(f"Your access code is {access_code}. It will expire in 5 minutes.")
+        await ctx.send("Access code sent to your DMs.")
+
+        # Prepare to send the access code and user ID to the backend
+        backend_url = 'http://127.0.0.1:8000/store_access_code/'
+        json_data = {
+            'user_id': str(ctx.author.id),
+            'access_code': access_code
+        }
+
+        # Send data to backend using aiohttp
+        async with aiohttp.ClientSession() as session:
+            headers = {'Content-Type': 'application/json'}  # Ensuring headers are set
+            async with session.post(backend_url, json=json_data, headers=headers) as response:
+                if response.status == 200:
+                    print("Access code successfully sent to backend.")
+                else:
+                    print("Failed to send access code to backend.")
+                    await ctx.send("Failed to process access code.")
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        await ctx.send("Failed to send DM. Please check your DM settings.")
