@@ -7,6 +7,8 @@
 </head>
 <body>
     <div class="toolbar">
+        <input type="file" id="upload" accept="image/*">
+
         <!-- Dropdown for selecting the map -->
         <select id="map-select">
             <option value="">Select Map</option>
@@ -19,7 +21,10 @@
             <option value="Nighthaven Labs">Nighthaven Labs</option>
             <option value="Oregon">Oregon</option>
             <option value="Skyscraper">Skyscraper</option>
+            <!-- Add additional maps as needed -->
         </select>
+
+
 
         <!-- Dropdown for selecting the match type -->
         <select id="match-type-select">
@@ -27,6 +32,7 @@
             <option value="Seeding">Seeding</option>
             <option value="Playoff">Playoff</option>
             <option value="Finals">Finals</option>
+            <!-- Add additional match types as needed -->
         </select>
 
         <!-- Input fields for entering the final score -->
@@ -34,13 +40,14 @@
             <label for="score-team1">Final Score:</label>
             <input type="number" id="score-team1" min="0" placeholder="0">
             <span> - </span>
+            <label for="score-team2"></label>
             <input type="number" id="score-team2" min="0" placeholder="0">
         </div>
 
         <button id="submit">Submit</button>
     </div>
     <div class="instructions">
-        <p>Draw rectangles over the parts of the image you need to crop and submit.</p>
+        <p>Upload your image, then draw rectangles over the parts you need to crop and submit.</p>
     </div>
     <canvas id="canvas"></canvas>
     <script src="script.js"></script>

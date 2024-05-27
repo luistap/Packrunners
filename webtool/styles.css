@@ -18,10 +18,8 @@ body {
 canvas {
     border: 2px solid #666; /* More visible border color */
     display: block;
-    margin: 0 auto; /* Center the canvas */
+    margin: 20px auto; /* Increase margin for better focus */
     background-color: #fff; /* White background to contrast with image and rectangles */
-    max-width: 100%; /* Ensure canvas is responsive and fits within the view */
-    height: auto; /* Adjust height dynamically */
 }
 
 input[type="file"], button, select, input[type="number"] {

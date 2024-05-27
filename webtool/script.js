@@ -1,43 +1,64 @@
 document.addEventListener("DOMContentLoaded", function() {
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
+    let canvas = document.getElementById('canvas');
+    let ctx = canvas.getContext('2d');
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const imageUrl = urlParams.get('image');
+    ctx.imageSmoothingQuality = 'high';  // Set high-quality image smoothing
 
     let rectangles = [];
-    let drag = false;
     let currentRect = null;
+    let drag = false;
+    let imageLoaded = false;
+    let image = new Image();
 
-    function drawImageOnCanvas(imgUrl) {
-        const image = new Image();
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
 
-        // Handle CORS
-        image.crossOrigin = "Anonymous"; 
+        if (imageLoaded) {
+            ctx.strokeStyle = "red";  // Visible color for the rectangle borders
+            ctx.lineWidth = 2;
 
-        image.onload = function() {
-            canvas.width = image.width;
-            canvas.height = image.height;
-            ctx.drawImage(image, 0, 0);
-            console.log("Image loaded and drawn on canvas.");
-        };
+            rectangles.forEach(rect => {
+                ctx.strokeRect(rect.startX, rect.startY, rect.w, rect.h);
+            });
 
-        image.onerror = function() {
-            console.error("Failed to load image.");
-        };
+            if (currentRect) {
+                ctx.strokeRect(currentRect.startX, currentRect.startY, currentRect.w, currentRect.h);
+            }
 
-        image.src = imgUrl;
+            ctx.globalAlpha = 0.2;  // Lower opacity for filled rectangles
+            ctx.fillStyle = "gray";
+            ctx.globalCompositeOperation = 'multiply';
+
+            rectangles.forEach(rect => {
+                ctx.fillRect(rect.startX, rect.startY, rect.w, rect.h);
+            });
+
+            if (currentRect) {
+                ctx.fillRect(currentRect.startX, currentRect.startY, currentRect.w, currentRect.h);
+            }
+
+            ctx.globalAlpha = 1.0;
+            ctx.globalCompositeOperation = 'source-over';  // Reset blend mode
+        }
     }
 
-    if (imageUrl) {
-        drawImageOnCanvas(imageUrl);
-    } else {
-        console.error("No image URL provided.");
-    }
+    document.getElementById('upload').addEventListener('change', function(e) {
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            image.onload = function() {
+                canvas.width = image.width;
+                canvas.height = image.height;
+                imageLoaded = true;
+                rectangles = [];
+                console.log("Image loaded and rectangles array cleared.");
+                draw();
+            };
+            image.src = event.target.result;
+        };
+        reader.readAsDataURL(e.target.files[0]);
+    });
 
-    // Event listeners for canvas drawing
     canvas.addEventListener('mousedown', function(e) {
         currentRect = {
             startX: e.pageX - canvas.offsetLeft,
@@ -48,23 +69,21 @@ document.addEventListener("DOMContentLoaded", function() {
         drag = true;
     });
 
-    canvas.addEventListener('mousemove', function(e) {
-        if (drag) {
-            currentRect.w = (e.pageX - canvas.offsetLeft) - currentRect.startX;
-            currentRect.h = (e.pageY - canvas.offsetTop) - currentRect.startY;
-            ctx.clearRect(0, 0, canvas.width, canvas.height);  // Clear the canvas
-            ctx.drawImage(image, 0, 0, canvas.width, canvas.height);  // Redraw the image
-            ctx.strokeStyle = "red";
-            ctx.strokeRect(currentRect.startX, currentRect.startY, currentRect.w, currentRect.h);
+    canvas.addEventListener('mouseup', function() {
+        if (currentRect && currentRect.w !== 0 && currentRect.h !== 0) {
+            rectangles.push(currentRect);
+            console.log(`Rectangle added: (${currentRect.startX}, ${currentRect.startY}, ${currentRect.w}, ${currentRect.h})`);
         }
+        currentRect = null;
+        drag = false;
+        draw();
     });
 
-    canvas.addEventListener('mouseup', function() {
-        if (currentRect) {
-            rectangles.push(currentRect);
-            console.log("Rectangle added:", currentRect);
-            drag = false;
-            currentRect = null;
+    canvas.addEventListener('mousemove', function(e) {
+        if (drag && imageLoaded && currentRect) {
+            currentRect.w = (e.pageX - canvas.offsetLeft) - currentRect.startX;
+            currentRect.h = (e.pageY - canvas.offsetTop) - currentRect.startY;
+            draw();
         }
     });
 
