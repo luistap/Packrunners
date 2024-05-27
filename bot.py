@@ -136,7 +136,7 @@ async def compare(ctx, *, names : str):
     embed.add_field(name=f"__{name2}__", value=player2_str, inline=True)
     await ctx.send(embed=embed)
 
-
+# obtain correction from user mid-pipeline
 async def prompt_correction(user_id, extracted_name, suggestions):
     user = await client.fetch_user(user_id)
     if user:

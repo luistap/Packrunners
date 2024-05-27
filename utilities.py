@@ -111,7 +111,7 @@ def get_connection():
         print(f"The error '{e}' occurred")
         return None
 
-
+# remove new line chars from scoreboard strings
 def clean_board(scbd):
     cleaned_scbd = {}
     for name, stats in scbd.items():
@@ -152,7 +152,7 @@ def get_exact_match(name, list_of_names):
     for username in list_of_names:
         if username.lower() == name.lower():
             return True
-    # no exact match
+    # no exact match found
     return False
 
 
