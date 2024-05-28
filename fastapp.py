@@ -10,7 +10,7 @@ import psycopg2
 import time
 import asyncio
 from pydantic import BaseModel
-from bot import start_bot
+from bot import start_bot, confirm_stats
 
 # define global instances
 codes = {}
@@ -58,9 +58,8 @@ async def upload_image(
     match_type: str = Form(...)
 ):
     print("Endpoint Hit: Received images for processing.")
-    if access_code not in codes:
-        raise HTTPException(status_code=403, detail="Invalid or expired access code.")
-    try:
+    if access_code in codes and datetime.datetime.now() < codes[access_code]['expires']:
+        user_id = codes[access_code]['user_id']
         files = {
             "team1_names": team1_names,
             "team2_names": team2_names,
@@ -77,32 +76,35 @@ async def upload_image(
                 print(f"No data received for {label}")
                 continue  # Skip further processing for this file
             paths[label] = save_image(image_data, label)
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    
-    gen_info = [map, match_type, final_score]
-    print(gen_info)
-    team1_info = {}
-    team2_info = {}
 
-    # files are saved now process each team
-    utilities.process_team(paths['team1_names'], paths['team1_stats'], team1_info)
-    utilities.process_team(paths['team2_names'], paths['team2_stats'], team2_info)
-    team1_info = utilities.clean_board(team1_info)
-    team2_info = utilities.clean_board(team2_info)
+        gen_info = [map, match_type, final_score]
+        print(gen_info)
+        team1_info = {}
+        team2_info = {}
 
-    # establish connection to the database
-    connection = utilities.get_connection()
-    db_names = utilities.get_all_player_names(connection)
+        # files are saved now process each team
+        utilities.process_team(paths['team1_names'], paths['team1_stats'], team1_info)
+        utilities.process_team(paths['team2_names'], paths['team2_stats'], team2_info)
+        team1_info = utilities.clean_board(team1_info)
+        team2_info = utilities.clean_board(team2_info)
 
-    await utilities.process_names(team1_info.keys(), db_names)
-    await utilities.process_names(team2_info.keys(), db_names)
-    print(team1_info)
-    print(team2_info)
+        # establish connection to the database
+        connection = utilities.get_connection()
+        db_names = utilities.get_all_player_names(connection)
 
-    # write to the database
+        await utilities.process_names(team1_info.keys(), db_names, user_id, team1_info)
+        await utilities.process_names(team2_info.keys(), db_names, user_id, team2_info)
+        
+        print(team1_info)
+        print(team2_info)
+        print(f"Processing data for user {user_id}")
+        print(user_id)
+        await confirm_stats(user_id, team1_info, team2_info)
 
+        # After processing
+        del codes[access_code]  # Optionally delete the code after use
+    else:
+        raise HTTPException(status_code=403, detail="Invalid or expired access code.")
     return
 
 def save_image(image_data, label):

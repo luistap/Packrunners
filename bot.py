@@ -12,7 +12,7 @@ import quickstart
 import secrets
 import datetime
 import aiohttp
-import storage_service
+import botutils
 
 load_dotenv()
 token = os.getenv('TOKEN')
@@ -22,7 +22,6 @@ intents.messages = True
 intents.guilds = True
 intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
-client = discord.Client(intents=intents)
 
 
 # set containers
@@ -69,10 +68,6 @@ async def fraud_watch(ctx):
     embed.add_field(name="KD Differential:", value=vals_str, inline=True)
     await ctx.send(embed=embed)
 
-
-
-
-
 # command: !carried
 @bot.command(name='carried', help='Determine which players are carried.')
 async def get_carried(ctx):
@@ -91,7 +86,6 @@ async def get_carried(ctx):
     embed.add_field(name="Win Rate:", value=win_rate_str, inline=True)
     await ctx.send(embed=embed)
 
-
 # command: !frauds
 @bot.command(name='frauds', help='Determines who the current fraudulent players are.')
 async def get_frauds(ctx):
@@ -107,7 +101,6 @@ async def get_frauds(ctx):
     embed.add_field(name="Name:", value=names_str, inline=True)
     embed.add_field(name="KD Differential:", value=vals_str, inline=True)
     await ctx.send(embed=embed)
-
 
 # command: !compare
 @bot.command(name='compare', help='Compare two players.')
@@ -127,28 +120,28 @@ async def compare(ctx, *, names : str):
     embed.add_field(name=f"__{name2}__", value=player2_str, inline=True)
     await ctx.send(embed=embed)
 
+async def confirm_stats(user_id, team1_info, team2_info):
+
+    user = await bot.fetch_user(user_id)
+    if user:
+        # Create a DM channel with the user
+        dm_channel = await user.create_dm()
+        
+        # Format the stats for each team
+        message_team1 = botutils.format_player_stats(team1_info)
+        message_team2 = botutils.format_player_stats(team2_info)
+        
+        # Send formatted stats as a single message for better readability
+        await dm_channel.send(f"**Team 1 Stats:**\n{message_team1}\n**Team 2 Stats:**\n{message_team2}")
+
 # obtain correction from user mid-pipeline
-async def prompt_correction(user_id, extracted_name, suggestions):
-    user = await client.fetch_user(user_id)
+async def prompt_correction(user_id, extracted_name):
+    user = await bot.fetch_user(user_id)
     if user:
         dm_channel = await user.create_dm()
         message = (f"OCR extracted the name '{extracted_name}'. "
-                   f"Suggestions: {', '.join(suggestions)}. "
                    "Please reply with the correct name.")
         await dm_channel.send(message)
-
-
-# command: !streamerinfo
-@bot.command(name='streamerinfo', help='Provide information regarding streamer contract(s).')
-async def streamer(ctx):
-
-    await ctx.send("Want to become a streamer for the org?")
-
-
-
-    
-    
-    # time is up check that all files are present
 
 @bot.command(name='upload', help='Fetch a screenshot from users and provide an access code.')
 async def upload_image(ctx):

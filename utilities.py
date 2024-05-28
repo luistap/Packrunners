@@ -120,17 +120,25 @@ def clean_board(scbd):
         # Assign the stats to the cleaned name in the new dictionary
         cleaned_scbd[cleaned_name] = stats
     return cleaned_scbd
-    
 
-async def process_names(names, list_of_names, user_id):
+
+async def process_names(names, list_of_names, user_id, team_info):
+
+    if not list_of_names:
+        # list is empty, db empty, return right away
+        return
 
     for name in names:
-
+        name_to_write = None
         # check exact matching
-        exact_match = get_exact_match(name, list_of_names)
-        if not exact_match:
+        name_to_write = get_exact_match(name, list_of_names)
+        if name_to_write is None:
             # get next best match
-            fuzzy_match = get_fuzzy_match(name, list_of_names, user_id)
+            name_to_write = get_fuzzy_match(name, list_of_names, user_id)
+            if name_to_write is not None:
+                # fuzzy match found, replace current key
+                team_info[name_to_write] = team_info.pop(name)
+
             
 
 def get_fuzzy_match(name, list_of_names, user_id):
@@ -140,9 +148,9 @@ def get_fuzzy_match(name, list_of_names, user_id):
         return best_match
     elif LOW_CONFIDENCE <= score < HIGH_CONFIDENCE:
         # prompt user for selection
-        name = bot.prompt_correction(user_id, name, )
+        return bot.prompt_correction(user_id, name)
     else:
-        return name
+        return None
 
 
 
@@ -151,9 +159,9 @@ def get_exact_match(name, list_of_names):
 
     for username in list_of_names:
         if username.lower() == name.lower():
-            return True
+            return name
     # no exact match found
-    return False
+    return None
 
 
 # obtain a list of all known player names from db

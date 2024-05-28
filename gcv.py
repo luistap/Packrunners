@@ -26,7 +26,7 @@ def convert_path(path):
     return path.replace("\\", "/")
 
 def main():
-    mypath = r"C:\Users\ltper\PCKSTATS\path_to_save_filtered_image.png"
+    mypath = r"C:\Users\ltper\OneDrive\Documents\Packrunners\chars_cropped\row_3_char_2.png"
     mypath = convert_path(mypath)
     text = detect_text(mypath)
     print(text)
