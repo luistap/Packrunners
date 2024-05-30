@@ -8,11 +8,12 @@ import stats
 import os
 import player as pl
 import asyncio
-import quickstart
 import secrets
 import datetime
 import aiohttp
 import botutils
+from discord import ButtonStyle, SelectOption
+from discord.ui import Button, View, Select, Modal, TextInput
 
 load_dotenv()
 token = os.getenv('TOKEN')
@@ -120,19 +121,77 @@ async def compare(ctx, *, names : str):
     embed.add_field(name=f"__{name2}__", value=player2_str, inline=True)
     await ctx.send(embed=embed)
 
-async def confirm_stats(user_id, team1_info, team2_info):
 
+class ConfirmationModal(Modal):
+    def __init__(self, title="Enter the correct value"):
+        super().__init__(title=title)
+        self.add_item(TextInput(label="Value:", placeholder="Enter the correct value"))
+
+    async def on_submit(self, interaction: discord.Interaction):
+        embed = discord.Embed(title="Your Modal Results", color=discord.Color.blurple())
+        embed.add_field(name="Corrected Value", value=self.children[0].value, inline=False)
+        await interaction.response.send_message(embed=embed)
+
+        
+
+class StatCorrectionSelect(discord.ui.Select):
+    def __init__(self, player):
+        options = [
+            discord.SelectOption(label="Name", description="Correct the player's name"),
+            discord.SelectOption(label="Kills", description="Correct the number of kills"),
+            discord.SelectOption(label="Deaths", description="Correct the number of deaths"),
+            discord.SelectOption(label="Assists", description="Correct the number of assists"),
+        ]
+        super().__init__(placeholder="Select the stat to correct", min_values=1, max_values=1, options=options)
+        self.player = player
+
+    async def callback(self, interaction: discord.Interaction):
+        selected_stat = self.values[0]
+        modal = ConfirmationModal()
+        await interaction.response.send_modal(modal)
+
+class PlayerSelect(discord.ui.Select):
+    def __init__(self, team1_info, team2_info):
+        options = [
+            discord.SelectOption(label=player, description="Team 1") for player in team1_info
+        ] + [
+            discord.SelectOption(label=player, description="Team 2") for player in team2_info
+        ]
+        super().__init__(placeholder="Choose a player to correct", min_values=1, max_values=1, options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        selected_player = self.values[0]
+        self.view.clear_items()
+        self.view.add_item(StatCorrectionSelect(selected_player))
+        await interaction.response.edit_message(content=f"You selected {selected_player}. What needs correction?", view=self.view)
+
+class ConfirmationView(discord.ui.View):
+    def __init__(self, user_id, team1_info, team2_info):
+        super().__init__(timeout=180)
+        self.user_id = user_id
+        self.team1_info = team1_info
+        self.team2_info = team2_info
+
+    @discord.ui.button(label="Yes", style=ButtonStyle.green, custom_id="confirm_yes")
+    async def confirm_yes(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message("Thank you for confirming the stats!", ephemeral=True)
+
+    @discord.ui.button(label="No", style=ButtonStyle.red, custom_id="confirm_no")
+    async def confirm_no(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.clear_items()
+        self.add_item(PlayerSelect(self.team1_info, self.team2_info))
+        await interaction.response.edit_message(content="Please choose the player and stat that needs correction.", view=self)
+
+# Usage example, function to initiate the interaction
+async def confirm_stats(user_id, team1_info, team2_info):
     user = await bot.fetch_user(user_id)
     if user:
-        # Create a DM channel with the user
         dm_channel = await user.create_dm()
-        
-        # Format the stats for each team
         message_team1 = botutils.format_player_stats(team1_info)
         message_team2 = botutils.format_player_stats(team2_info)
-        
-        # Send formatted stats as a single message for better readability
-        await dm_channel.send(f"**Team 1 Stats:**\n{message_team1}\n**Team 2 Stats:**\n{message_team2}")
+        view = ConfirmationView(user_id, team1_info, team2_info)
+        await dm_channel.send(f"**Team 1 Stats:**\n{message_team1}\n**Team 2 Stats:**\n{message_team2}", view=view)
+
 
 # obtain correction from user mid-pipeline
 async def prompt_correction(user_id, extracted_name):
