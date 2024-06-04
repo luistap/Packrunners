@@ -9,8 +9,10 @@ import utilities
 import psycopg2
 import time
 import asyncio
+from write import write_match_data
 from pydantic import BaseModel
 from bot import start_bot, confirm_stats
+from stats_manager import global_stats_manager
 
 # define global instances
 codes = {}
@@ -89,20 +91,31 @@ async def upload_image(
         team2_info = utilities.clean_board(team2_info)
 
         # establish connection to the database
-        connection = utilities.get_connection()
-        db_names = utilities.get_all_player_names(connection)
+        connection = await utilities.create_connection()
+     #   db_names = utilities.get_all_player_names(connection)
 
-        await utilities.process_names(team1_info.keys(), db_names, user_id, team1_info)
-        await utilities.process_names(team2_info.keys(), db_names, user_id, team2_info)
+       # await utilities.process_names(team1_info.keys(), db_names, user_id, team1_info)
+       # await utilities.process_names(team2_info.keys(), db_names, user_id, team2_info)
         
         print(team1_info)
         print(team2_info)
+        global_stats_manager.set_teams(team1_info, team2_info)
         print(f"Processing data for user {user_id}")
         print(user_id)
+
         await confirm_stats(user_id, team1_info, team2_info)
 
-        # After processing
-        del codes[access_code]  # Optionally delete the code after use
+        team1_info = global_stats_manager.get_team_info('team1')
+        team2_info = global_stats_manager.get_team_info('team2')
+        # team1 and team2 info now correct, write to the db
+        print(team1_info)
+        print(team2_info)
+
+        # we write to the db here
+        # Assuming conn is your active database connection
+        await write_match_data(connection, team1_info, team2_info, gen_info)
+
+        del codes[access_code]  # delete access code post-write
     else:
         raise HTTPException(status_code=403, detail="Invalid or expired access code.")
     return

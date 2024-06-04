@@ -9,6 +9,7 @@ from fuzzywuzzy import fuzz
 from fuzzywuzzy import process
 from psycopg2 import OperationalError
 from google.cloud import vision
+import asyncpg
 import bot
 
 # Configure your Cloudinary credentials
@@ -95,20 +96,19 @@ def process_team(names_path : str, stats_path : str, team_dict : dict):
         team_dict[names_text[index]] = stats_as_ints
     return
 
-# get the connection object from our database
-def get_connection():
+async def create_connection():
     try:
-        conn = psycopg2.connect(
-            dbname="packrunnerDB",
+        conn = await asyncpg.connect(
+            database="packrunnerDB",
             user="packrunnerDB_owner",
             password="GXJyfgEB23nj",
             host="ep-hidden-king-a5h5vm2e.us-east-2.aws.neon.tech",
-            sslmode="require"
+            ssl="require"
         )
         print("Connection to the PostgreSQL database successful")
         return conn
-    except OperationalError as e:
-        print(f"The error '{e}' occurred")
+    except Exception as e:
+        print(f"An error occurred: {e}")
         return None
 
 # remove new line chars from scoreboard strings
@@ -172,3 +172,4 @@ def get_all_player_names(connection):
         # Fetch all rows, each containing one name
         names = [row[0] for row in cursor.fetchall()]
     return names 
+
