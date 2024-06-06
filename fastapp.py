@@ -1,17 +1,16 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException, Form
-from fastapi.middleware.cors import CORSMiddleware
+# BACKEND SERVER AND DATA PIPELINE MODULE
+# ALL OTHER MODULES SHALL BE BEST REGARDED AS CLIENTS OF THIS BACKEND
+
 import uvicorn
-from PIL import Image
-import io
 import os
 import datetime
 import utilities
-import psycopg2
-import time
 import asyncio
+from fastapi import FastAPI, File, UploadFile, HTTPException, Form
+from fastapi.middleware.cors import CORSMiddleware
 from write import write_match_data
 from pydantic import BaseModel
-from bot import start_bot, confirm_stats
+from bot import start_bot, confirm_stats, post_match_summary
 from stats_manager import global_stats_manager
 
 # define global instances
@@ -113,6 +112,7 @@ async def upload_image(
 
         # we write to the db here
         # Assuming conn is your active database connection
+        await post_match_summary(team1_info, team2_info, gen_info)
         await write_match_data(connection, team1_info, team2_info, gen_info)
 
         del codes[access_code]  # delete access code post-write

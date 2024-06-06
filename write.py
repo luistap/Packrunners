@@ -1,3 +1,5 @@
+# PRIMARY MODULE TO EXECUTE DATABASE WRITING
+
 from datetime import datetime
 import asyncpg
 

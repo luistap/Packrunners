@@ -4,20 +4,18 @@
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
-import stats
 import os
-import player as pl
 import asyncio
 import secrets
-import datetime
 import aiohttp
 import botutils
-from discord import ButtonStyle, SelectOption
-from discord.ui import Button, View, Select, Modal, TextInput
+from discord import ButtonStyle
+from discord.ui import View, Select, Modal, TextInput
 from stats_manager import global_stats_manager
 
 load_dotenv()
 token = os.getenv('TOKEN')
+channel_send = 880977932892385330
 
 intents = discord.Intents.default()
 intents.messages = True
@@ -35,92 +33,21 @@ async def on_ready():
 async def start_bot():
     await bot.start(token)
 
-# command: !player
-@bot.command(name= 'player', help='Displays stats for a specified player.')
-async def player_stats(ctx, playerName: str):
 
-    player_row = stats.get_row(playerName)
-    if player_row is None:
-        await ctx.send("name not found")
-    else:
-        current_player = pl.Player(player_row)
-        # we have the player object, embed
-        embed = discord.Embed(title=current_player.get_name(), color=0x00ff00)
-        embed.add_field(name="Level:", value=str(current_player.get_level()), inline=True)
-        embed.add_field(name="Ranked Stats:", value=current_player.get_rank(), inline=True)
-        embed.add_field(name="Tournament KD:", value=current_player.get_tournamentKD(), inline=False)
-        embed.add_field(name="Tournament W/L:", value=current_player.get_WL(), inline=False)
-        embed.add_field(name="Finals Record:", value=current_player.get_finalsApp(), inline=False)
-        await ctx.send(embed=embed)
+async def post_match_summary(team1_info, team2_info, gen_info):
+    channel = bot.get_channel(channel_send)
+    if channel:
+        # Format the message
+        message = f"**Match Summary:**\n**Map:** {gen_info[0]}\n**Match Type:** {gen_info[1]}\n**Score:** {gen_info[2]}\n\n"
+        message += "**Team 1 Stats:**\n"
+        for player, stats in team1_info.items():
+            message += f"{player}: Kills: {stats[0]}, Deaths: {stats[1]}, Assists: {stats[2]}\n"
+        message += "\n**Team 2 Stats:**\n"
+        for player, stats in team2_info.items():
+            message += f"{player}: Kills: {stats[0]}, Deaths: {stats[1]}, Assists: {stats[2]}\n"
 
-# command: !fraudwatch
-@bot.command(name='fraudwatch', help='Determines who is under fraud watch')
-async def fraud_watch(ctx):
-
-    fraud_watch_list = stats.fraud_watch()
-    names_str = ""
-    vals_str = ""
-    embed = discord.Embed(title="SOON TO BE FRAUDS", color=0x00ff00)
-    for name, diff in fraud_watch_list.items():
-        names_str += f"{name}\n"
-        vals_str += f"{diff}\n"
-    
-    embed.add_field(name="Name:", value=names_str, inline=True)
-    embed.add_field(name="KD Differential:", value=vals_str, inline=True)
-    await ctx.send(embed=embed)
-
-# command: !carried
-@bot.command(name='carried', help='Determine which players are carried.')
-async def get_carried(ctx):
-
-    carried = stats.get_carried_players()
-    names_str = ""
-    win_rate_str = ""
-    kd_str = ""
-    embed = discord.Embed(title="CARRIED PLAYERS", color=0x00ff00)
-    for name, list in carried.items():
-        names_str += f"{name}\n"
-        win_rate_str += f"{list[1]}\n"
-        kd_str += f"{list[0]}\n"
-    embed.add_field(name="Name:", value=names_str, inline=True)
-    embed.add_field(name="T-KD:", value=kd_str, inline=True)
-    embed.add_field(name="Win Rate:", value=win_rate_str, inline=True)
-    await ctx.send(embed=embed)
-
-# command: !frauds
-@bot.command(name='frauds', help='Determines who the current fraudulent players are.')
-async def get_frauds(ctx):
-
-    frauds = stats.det_frauds()
-    names_str = ""
-    vals_str = ""
-    embed = discord.Embed(title="FRAUDULENT PLAYERS", color=0x00ff00)
-    for name, diff in frauds.items():
-        names_str += f"{name}\n"
-        vals_str += f"{diff}\n"
-    
-    embed.add_field(name="Name:", value=names_str, inline=True)
-    embed.add_field(name="KD Differential:", value=vals_str, inline=True)
-    await ctx.send(embed=embed)
-
-# command: !compare
-@bot.command(name='compare', help='Compare two players.')
-async def compare(ctx, *, names : str):
-    
-    name1, name2 = names.split()
-    player1_row = stats.get_row(name1)
-    player2_row = stats.get_row(name2)
-    player1_str = pl.Player(player1_row).toString()
-    player2_str = pl.Player(player2_row).toString()
-    embed = discord.Embed(title="Player Comparison", color=0x00ff00)
-    stat_names = ""
-    for stat in player1_row.keys():
-        stat_names += f"**{stat}**\n"
-    embed.add_field(name=f"__{name1}__", value=player1_str, inline=True)
-    embed.add_field(name=f"Stats", value=stat_names, inline=True)
-    embed.add_field(name=f"__{name2}__", value=player2_str, inline=True)
-    await ctx.send(embed=embed)
-
+        # Send the message
+        await channel.send(message)
 
 
 class ConfirmationModal(Modal):
@@ -225,7 +152,7 @@ async def prompt_correction(user_id, extracted_name):
         await dm_channel.send(message)
 
 @bot.command(name='upload', help='Fetch a screenshot from users and provide an access code.')
-async def upload_image(ctx):
+async def upload(ctx):
     if not ctx.author.guild_permissions.administrator:
         await ctx.send("You do not have permission to perform this action.")
         return

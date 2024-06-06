@@ -1,10 +1,11 @@
+# MAIN MODULE FOR UTILITY FUNCTIONS USED BY THE BACKEND SERVER
+
 import cloudinary
 import cloudinary.uploader
 import cloudinary.api
 import requests
 import os
 import re
-import psycopg2
 from fuzzywuzzy import fuzz
 from fuzzywuzzy import process
 from psycopg2 import OperationalError
