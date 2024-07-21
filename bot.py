@@ -92,6 +92,54 @@ async def post_match_summary(team1_info, team2_info, gen_info):
         # Send the message
         await channel.send(message)
 
+@bot.command(name='h2h', help='Get the head-to-head record between two players')
+async def h2h(ctx, player1: str, player2: str):
+    # Ensure the database connection
+    connection = await asyncpg.connect(
+            database="packrunnerDB",
+            user="packrunnerDB_owner",
+            password="GXJyfgEB23nj",
+            host="ep-hidden-king-a5h5vm2e.us-east-2.aws.neon.tech",
+            ssl="require"
+        )
+
+
+    # Fetch the H2H record
+    record = await fetch_h2h_record(connection, player1, player2)
+    if record:
+        await ctx.send(f"{record['player_one_name']} is {record['player_one_wins']}-{record['player_two_wins']} against {record['player_two_name']} all time")
+    else:
+        await ctx.send("No head-to-head record found between these players.")
+
+    # Close the database connection
+    await connection.close()
+
+async def fetch_h2h_record(connection, player1, player2):
+    # Get IDs for both players
+    player1_id = await connection.fetchval("SELECT player_id FROM Players WHERE name = $1", player1)
+    player2_id = await connection.fetchval("SELECT player_id FROM Players WHERE name = $1", player2)
+
+    if not player1_id or not player2_id:
+        return None  # If either player ID is not found, return None
+
+    # Fetch H2H records, considering both potential orderings of player IDs
+    query = """
+        SELECT 
+            p1.name as player_one_name, 
+            p2.name as player_two_name, 
+            h.player_one_wins, 
+            h.player_two_wins
+        FROM H2H_Records h
+        JOIN Players p1 ON h.player_one_id = p1.player_id
+        JOIN Players p2 ON h.player_two_id = p2.player_id
+        WHERE (h.player_one_id = $1 AND h.player_two_id = $2) 
+           OR (h.player_one_id = $2 AND h.player_two_id = $1)
+    """
+    record = await connection.fetchrow(query, player1_id, player2_id)
+
+    return record
+
+
 
 @bot.command(name='player', help='Get player stats')
 async def player_stats(ctx, player_name: str):
@@ -250,3 +298,4 @@ async def upload(ctx):
     except Exception as e:
         print(f"Error: {str(e)}")
         await ctx.send("Failed to send DM. Please check your DM settings.")
+
