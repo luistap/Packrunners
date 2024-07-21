@@ -6,7 +6,6 @@ import cloudinary.api
 import requests
 import os
 import re
-from fuzzywuzzy import fuzz
 from fuzzywuzzy import process
 from psycopg2 import OperationalError
 from google.cloud import vision

@@ -1,51 +1,74 @@
+-- SQL script to set up the database schema for player statistics
 
--- Create Teams Table
-CREATE TABLE IF NOT EXISTS teams (
-    team_id SERIAL PRIMARY KEY,
-    team_name VARCHAR(255)
-);
-
--- Create Players Table
-CREATE TABLE IF NOT EXISTS players (
+-- Create Players table
+CREATE TABLE IF NOT EXISTS Players (
     player_id SERIAL PRIMARY KEY,
-    name VARCHAR(255) UNIQUE,
-    rank VARCHAR(255),
-    ranked_kd DECIMAL
+    name VARCHAR(255) UNIQUE NOT NULL
 );
 
--- Create Matches Table
-CREATE TABLE IF NOT EXISTS matches (
+-- Create Maps table
+CREATE TABLE IF NOT EXISTS Maps (
+    map_id SERIAL PRIMARY KEY,
+    map_name VARCHAR(255) UNIQUE NOT NULL
+);
+
+-- Create Match_Types table
+CREATE TABLE IF NOT EXISTS Match_Types (
+    match_type_id SERIAL PRIMARY KEY,
+    description VARCHAR(255) UNIQUE NOT NULL
+);
+
+-- Modify the Matches table to include a score column
+CREATE TABLE IF NOT EXISTS Matches (
     match_id SERIAL PRIMARY KEY,
-    map_id INTEGER REFERENCES maps(map_id),
-    date_played DATE,
-    type_id INTEGER REFERENCES match_types(type_id),
-    team1_id INTEGER REFERENCES teams(team_id),
-    team2_id INTEGER REFERENCES teams(team_id),
-    score_team1 INTEGER,
-    score_team2 INTEGER
+    map_id INT NOT NULL,
+    match_type_id INT NOT NULL,
+    score VARCHAR(10),  -- assuming the score format "X-Y"
+    date TIMESTAMP NOT NULL,
+    FOREIGN KEY (map_id) REFERENCES Maps(map_id),
+    FOREIGN KEY (match_type_id) REFERENCES Match_Types(match_type_id)
 );
 
--- Create Team Matches Table
-CREATE TABLE IF NOT EXISTS team_matches (
-    team_match_id SERIAL PRIMARY KEY,
-    match_id INTEGER REFERENCES matches(match_id),
-    team_id INTEGER REFERENCES teams(team_id),
-    is_winner BOOLEAN
+
+-- Create Player_Stats table
+CREATE TABLE IF NOT EXISTS Player_Stats (
+    stat_id SERIAL PRIMARY KEY,
+    player_id INT NOT NULL,
+    match_id INT NOT NULL,
+    kills INT NOT NULL,
+    deaths INT NOT NULL,
+    assists INT NOT NULL,
+    FOREIGN KEY (player_id) REFERENCES Players(player_id),
+    FOREIGN KEY (match_id) REFERENCES Matches(match_id)
 );
 
--- Create Player Stats Table
-CREATE TABLE IF NOT EXISTS player_stats (
-    stats_id SERIAL PRIMARY KEY,
-    player_id INTEGER REFERENCES players(player_id),
-    team_match_id INTEGER REFERENCES team_matches(team_match_id),
-    kills INTEGER,
-    deaths INTEGER,
-    assists INTEGER
+CREATE TABLE IF NOT EXISTS Player_Aggregate_Stats (
+    agg_stat_id SERIAL PRIMARY KEY,
+    player_id INT NOT NULL,
+    map_id INT,
+    match_type_id INT,
+    total_kills INT DEFAULT 0,
+    total_deaths INT DEFAULT 0,
+    total_assists INT DEFAULT 0,
+    matches_played INT DEFAULT 0,
+    matches_won INT DEFAULT 0,
+    matches_lost INT DEFAULT 0,
+    FOREIGN KEY (player_id) REFERENCES Players(player_id),
+    FOREIGN KEY (map_id) REFERENCES Maps(map_id),
+    FOREIGN KEY (match_type_id) REFERENCES Match_Types(match_type_id),
+    UNIQUE (player_id, map_id, match_type_id)  -- Adding a composite unique constraint
 );
 
--- Indexes for faster query performance
-CREATE INDEX IF NOT EXISTS idx_player_id ON player_stats(player_id);
-CREATE INDEX IF NOT EXISTS idx_match_id ON player_stats(team_match_id);
-CREATE INDEX IF NOT EXISTS idx_team_id ON team_matches(team_id);
-CREATE INDEX IF NOT EXISTS idx_map_id ON matches(map_id);
+
+-- Create H2H_Records table
+CREATE TABLE IF NOT EXISTS H2H_Records (
+    h2h_id SERIAL PRIMARY KEY,
+    player_one_id INT NOT NULL,
+    player_two_id INT NOT NULL,
+    player_one_wins INT DEFAULT 0,
+    player_two_wins INT DEFAULT 0,
+    FOREIGN KEY (player_one_id) REFERENCES Players(player_id),
+    FOREIGN KEY (player_two_id) REFERENCES Players(player_id),
+    UNIQUE (player_one_id, player_two_id)
+);
 

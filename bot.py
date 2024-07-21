@@ -12,6 +12,7 @@ import botutils
 from discord import ButtonStyle
 from discord.ui import View, Select, Modal, TextInput
 from stats_manager import global_stats_manager
+import asyncpg
 
 load_dotenv()
 token = os.getenv('TOKEN')
@@ -24,10 +25,52 @@ intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 
 correction_completed_event = asyncio.Event()
+pool = None
+
+async def init_db():
+    global pool
+    try:
+        pool = await asyncpg.create_pool(
+            database="packrunnerDB",
+            user="packrunnerDB_owner",
+            password="GXJyfgEB23nj",
+            host="ep-hidden-king-a5h5vm2e.us-east-2.aws.neon.tech",
+            ssl="require"
+        )
+        print("Connection pool created successfully")
+    except Exception as e:
+        print(f"Failed to create pool: {e}")
+
+async def fetch_data():
+    try:
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                result = await conn.fetch("SELECT * FROM some_table")
+                return result
+    except Exception as e:
+        print(f"An error occurred during fetching data: {e}")
+        return None
+
+@bot.command(name='getdata')
+async def get_data(ctx):
+    data = await fetch_data()
+    if data:
+        message = "\n".join([str(row) for row in data])
+        await ctx.send(message)
+    else:
+        await ctx.send("Failed to fetch data or no data found.")
 
 @bot.event
 async def on_ready():
-    print('ready')
+    await init_db()
+    print('Bot is ready and connected to the database!')
+
+@bot.event
+async def on_close():
+    global pool
+    if pool:
+        await pool.close()
+        print("Connection pool closed")
 
 # Define a function to start the bot
 async def start_bot():
@@ -48,6 +91,29 @@ async def post_match_summary(team1_info, team2_info, gen_info):
 
         # Send the message
         await channel.send(message)
+
+
+@bot.command(name='player', help='Get player stats')
+async def player_stats(ctx, player_name: str):
+    try:
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                # Assuming you have a table called 'player_stats' with columns 'name', 'kills', 'deaths', etc.
+                query = "SELECT name, kills, deaths, assists FROM player_stats WHERE name = $1"
+                result = await conn.fetchrow(query, player_name)
+
+                if result:
+                    message = (f"Stats for {result['name']}:\n"
+                               f"Kills: {result['kills']}\n"
+                               f"Deaths: {result['deaths']}\n"
+                               f"Assists: {result['assists']}")
+                else:
+                    message = f"No stats found for {player_name}."
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        message = "Failed to fetch player stats."
+
+    await ctx.send(message)
 
 
 class ConfirmationModal(Modal):
