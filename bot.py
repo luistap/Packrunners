@@ -13,6 +13,17 @@ from discord import ButtonStyle
 from discord.ui import View, Select, Modal, TextInput
 from stats_manager import global_stats_manager
 import asyncpg
+from google.cloud import storage
+import requests
+from PIL import Image
+from io import BytesIO
+from imageio import imread
+
+os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'packrunners.json'
+
+# Initialize the Google Cloud Storage client
+client = storage.Client()
+bucket = client.bucket('discord_imports')
 
 load_dotenv()
 token = os.getenv('TOKEN')
@@ -60,6 +71,7 @@ async def get_data(ctx):
     else:
         await ctx.send("Failed to fetch data or no data found.")
 
+
 @bot.event
 async def on_ready():
     await init_db()
@@ -71,6 +83,9 @@ async def on_close():
     if pool:
         await pool.close()
         print("Connection pool closed")
+
+
+
 
 # Define a function to start the bot
 async def start_bot():
@@ -95,32 +110,42 @@ async def post_match_summary(team1_info, team2_info, gen_info):
 @bot.command(name='h2h', help='Get the head-to-head record between two players')
 async def h2h(ctx, player1: str, player2: str):
     # Ensure the database connection
-    connection = await asyncpg.connect(
-            database="packrunnerDB",
-            user="packrunnerDB_owner",
-            password="GXJyfgEB23nj",
-            host="ep-hidden-king-a5h5vm2e.us-east-2.aws.neon.tech",
-            ssl="require"
+    async with pool.acquire() as connection:
+        # Fetch the H2H record
+        record = await fetch_h2h_record(connection, player1, player2)
+
+        if not record:
+            await ctx.send("No head-to-head record found between these players.")
+            return
+
+        merged_url = await merge_images(url1=record['player_one_pic'], url2=record['player_two_pic'], standard_size=(256, 256))
+        # Constructing the record description based on player wins
+        record_description = f"{record['player_one_name']} has a record of {record['player_one_wins']}-{record['player_two_wins']} against {record['player_two_name']} all-time."
+
+        # Create and send an embed with the record and merged image
+        embed = discord.Embed(
+            title="Head-to-Head Record",
+            description=record_description,
+            color=discord.Color.blue()
         )
+        embed.set_image(url=merged_url) 
 
+        await ctx.send(embed=embed)
 
-    # Fetch the H2H record
-    record = await fetch_h2h_record(connection, player1, player2)
-    if record:
-        await ctx.send(f"{record['player_one_name']} is {record['player_one_wins']}-{record['player_two_wins']} against {record['player_two_name']} all time")
-    else:
-        await ctx.send("No head-to-head record found between these players.")
-
-    # Close the database connection
-    await connection.close()
 
 async def fetch_h2h_record(connection, player1, player2):
-    # Get IDs for both players
-    player1_id = await connection.fetchval("SELECT player_id FROM Players WHERE name = $1", player1)
-    player2_id = await connection.fetchval("SELECT player_id FROM Players WHERE name = $1", player2)
+    # Get IDs and profile pictures for both players
+    player_query = """
+        SELECT player_id, name, profile_pic_url FROM Players WHERE name = $1 OR name = $2
+    """
+    players = await connection.fetch(player_query, player1, player2)
+    if len(players) < 2:
+        return None  # If either player is not found, return None
 
-    if not player1_id or not player2_id:
-        return None  # If either player ID is not found, return None
+    player1_data = next((p for p in players if p['name'].lower() == player1.lower()), None)
+    player2_data = next((p for p in players if p['name'].lower() == player2.lower()), None)
+    if not player1_data or not player2_data:
+        return None
 
     # Fetch H2H records, considering both potential orderings of player IDs
     query = """
@@ -128,16 +153,51 @@ async def fetch_h2h_record(connection, player1, player2):
             p1.name as player_one_name, 
             p2.name as player_two_name, 
             h.player_one_wins, 
-            h.player_two_wins
+            h.player_two_wins,
+            p1.profile_pic_url as player_one_pic,
+            p2.profile_pic_url as player_two_pic
         FROM H2H_Records h
         JOIN Players p1 ON h.player_one_id = p1.player_id
         JOIN Players p2 ON h.player_two_id = p2.player_id
         WHERE (h.player_one_id = $1 AND h.player_two_id = $2) 
            OR (h.player_one_id = $2 AND h.player_two_id = $1)
     """
-    record = await connection.fetchrow(query, player1_id, player2_id)
+    record = await connection.fetchrow(query, player1_data['player_id'], player2_data['player_id'])
 
-    return record
+    return record if record else None
+
+async def merge_images(url1, url2, standard_size=(256, 256)):
+
+    response1 = requests.get(url1)
+    response2 = requests.get(url2)
+    image1 = Image.open(BytesIO(response1.content))
+    image2 = Image.open(BytesIO(response2.content))
+
+    image1 = image1.resize(standard_size)
+    image2 = image2.resize(standard_size)
+
+    dst = Image.new('RGB', (standard_size[0] * 2, standard_size[1]))
+    dst.paste(image1, (0, 0))
+    dst.paste(image2, (standard_size[0], 0))
+
+    img_byte_arr = BytesIO()
+    dst.save(img_byte_arr, format='PNG')
+    img_byte_arr.seek(0)
+
+    file_name = "merged_h2h.png"
+    return await upload_to_cloud_storage(img_byte_arr.getvalue(), file_name)
+
+
+async def upload_to_cloud_storage(image_bytes, file_name):
+    """Uploads the image to a cloud storage and returns the URL."""
+    blob = bucket.blob(file_name)
+    blob.upload_from_string(image_bytes, content_type='image/png')
+    public_url = f"https://storage.googleapis.com/{bucket.name}/{blob.name}"
+    print("sent to cloud")
+    return public_url
+
+
+
 
 
 
@@ -162,6 +222,56 @@ async def player_stats(ctx, player_name: str):
         message = "Failed to fetch player stats."
 
     await ctx.send(message)
+
+
+
+@bot.command(name='pfp', help='Upload a new profile picture')
+async def upload_pfp(ctx, player_name: str):
+    # Inform the user and start a DM session
+    if ctx.author.dm_channel is None:
+        await ctx.author.create_dm()
+    await ctx.author.dm_channel.send("Please send the new profile picture as an attachment.")
+    
+    # Listen for the next message from this user in DM
+    def check(message):
+        return message.author == ctx.author and message.attachments and isinstance(message.channel, discord.DMChannel)
+
+    try:
+        message = await bot.wait_for('message', check=check, timeout=300.0)  # 5 minutes timeout
+    except asyncio.TimeoutError:
+        await ctx.author.dm_channel.send("You did not send an image in time. Please try the command again if you wish to update your profile picture.")
+        return
+
+    attachment = message.attachments[0]  # Corrected to use the received message in DM
+    file_extension = os.path.splitext(attachment.filename)[1].lower()
+    if file_extension not in ['.png', '.jpg', '.jpeg', '.gif']:
+        await ctx.author.dm_channel.send("Please upload a valid image file (png, jpg, jpeg, gif).")
+        return
+
+    # Set the filename in the bucket
+    file_path = f"images/{ctx.author.id}{file_extension}"
+    blob = bucket.blob(file_path)
+
+    # Download the image from Discord and upload to Google Cloud Storage
+    image_data = await attachment.read()
+    blob.upload_from_string(image_data, content_type=attachment.content_type)
+    blob.cache_control = "no-cache, max-age=0"  # Advises no caching
+    blob.patch()  # Apply the cache control settings
+
+    # Form the public URL
+    public_url = f"https://storage.googleapis.com/{bucket.name}/{blob.name}"
+
+    # Use the global pool to execute the update
+    try:
+        async with pool.acquire() as connection:
+            await connection.execute(
+                "UPDATE Players SET profile_pic_url = $1 WHERE name = $2",
+                public_url, player_name
+            )
+        await ctx.author.dm_channel.send(f"Profile picture for {player_name} uploaded successfully! URL: {public_url}")
+    except Exception as e:
+        await ctx.author.dm_channel.send(f"Failed to update profile picture for {player_name} in the database.")
+        print(f"Database update error: {e}")
 
 
 class ConfirmationModal(Modal):
@@ -249,9 +359,11 @@ class ConfirmationView(View):
 async def confirm_stats(user_id, team1_info, team2_info):
     user = await bot.fetch_user(user_id)
     if user:
+        raw_team1 = botutils.format_player_stats(team1_info)
+        raw_team2 = botutils.format_player_stats(team2_info)
         dm_channel = await user.create_dm()
         view = ConfirmationView(user_id, team1_info, team2_info)
-        await dm_channel.send("Please review the stats and make corrections as needed.", view=view)
+        await dm_channel.send("Please review the stats and make corrections as needed.\n" + raw_team1 + "\n" + raw_team2, view=view)
         await correction_completed_event.wait()  # Wait until the corrections are confirmed as done
         correction_completed_event.clear()  # Reset the event for future use
 
@@ -276,9 +388,9 @@ async def upload(ctx):
 
     # Send the access code to the user's DM
     try:
-        await ctx.author.send(f"Your access code is {access_code}. It will expire in 5 minutes.")
+        message = f"Your access code is: ```{access_code}```\nIt will expire in 5 minutes."
+        await ctx.author.send(message)
         await ctx.send("Access code sent to your DMs.")
-
         # Prepare to send the access code and user ID to the backend
         backend_url = 'http://127.0.0.1:8000/store_access_code/'
         json_data = {

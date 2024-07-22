@@ -6,6 +6,7 @@ async def write_match_data(connection, team1_info, team2_info, gen_info):
     match_type = match_type.lower()
     team1_score, team2_score = map(int, final_score.split('-'))
 
+
     # Ensure map and match type exist and get their IDs
     map_id = await ensure_exists(connection, 'Maps', 'map_name', map_name, 'map_id')
     match_type_id = await ensure_exists(connection, 'Match_Types', 'description', match_type, 'match_type_id')
@@ -24,7 +25,7 @@ async def ensure_exists(connection, table, column, value, id_column):
     """Ensure the entity exists in the database and return its ID. Insert if not exists."""
     query = f"SELECT {id_column} FROM {table} WHERE {column} = $1"
     entity_id = await connection.fetchval(query, value)
-    if not entity_id:
+    if entity_id is None:
         if table == 'Players':
             # Insert new player since it's expected that new players might not exist
             insert_query = f"INSERT INTO {table} ({column}) VALUES ($1) RETURNING {id_column}"

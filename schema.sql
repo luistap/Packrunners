@@ -72,3 +72,5 @@ CREATE TABLE IF NOT EXISTS H2H_Records (
     UNIQUE (player_one_id, player_two_id)
 );
 
+ALTER TABLE Players
+ADD COLUMN profile_pic_url VARCHAR(255);
