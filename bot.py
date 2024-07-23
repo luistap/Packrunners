@@ -17,6 +17,7 @@ from google.cloud import storage
 import requests
 from PIL import Image
 from io import BytesIO
+import time
 from imageio import imread
 
 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'packrunners.json'
@@ -28,6 +29,8 @@ bucket = client.bucket('discord_imports')
 load_dotenv()
 token = os.getenv('TOKEN')
 channel_send = 880977932892385330
+
+default_pfp = 'https://storage.googleapis.com/discord_imports/default.png'
 
 intents = discord.Intents.default()
 intents.messages = True
@@ -93,6 +96,7 @@ async def start_bot():
 
 
 async def post_match_summary(team1_info, team2_info, gen_info):
+
     channel = bot.get_channel(channel_send)
     if channel:
         # Format the message
@@ -107,6 +111,67 @@ async def post_match_summary(team1_info, team2_info, gen_info):
         # Send the message
         await channel.send(message)
 
+
+
+@bot.command(name='map', help='Get map-specific data')
+async def map_stats(ctx, player: str, map_name: str):
+    if pool is None:
+        await ctx.send("Database connection is not established.")
+        return
+
+    try:
+        # Fetch player_id based on player name
+        player_id = await pool.fetchval(
+            "SELECT player_id FROM Players WHERE name = $1", player
+        )
+        if not player_id:
+            await ctx.send("Player not found.")
+            return
+
+        # Fetch map_id based on map name
+        map_id = await pool.fetchval(
+            "SELECT map_id FROM Maps WHERE map_name = $1", map_name
+        )
+        if not map_id:
+            await ctx.send("Map not found.")
+            return
+
+        # Fetch player stats for the specific map dynamically
+        stats = await pool.fetchrow(
+            """
+            SELECT
+                COUNT(*) AS matches_played,
+                COUNT(*) FILTER (WHERE ps.result = 'w') AS matches_won,
+                COUNT(*) FILTER (WHERE ps.result = 'l') AS matches_lost,
+                SUM(ps.kills) AS total_kills,
+                SUM(ps.deaths) AS total_deaths
+            FROM Player_Stats ps
+            JOIN Matches m ON ps.match_id = m.match_id
+            WHERE ps.player_id = $1 AND m.map_id = $2
+            """, player_id, map_id
+        )
+
+        if not stats or stats['matches_played'] == 0:
+            await ctx.send(f"No stats available for {player} on {map_name}.")
+            return
+
+        # Calculate K/D ratio, handling division by zero
+        kd_ratio = stats['total_kills'] / stats['total_deaths'] if stats['total_deaths'] > 0 else float('inf')
+        response = (f"**Stats for {player} on {map_name}:**\n"
+                    f"Matches Played: {stats['matches_played']}\n"
+                    f"Matches Won: {stats['matches_won']}\n"
+                    f"Matches Lost: {stats['matches_lost']}\n"
+                    f"Total Kills: {stats['total_kills']}\n"
+                    f"Total Deaths: {stats['total_deaths']}\n"
+                    f"K/D Ratio: {kd_ratio:.2f}")
+
+        await ctx.send(response)
+    except Exception as e:
+        await ctx.send(f"An error occurred: {str(e)}")
+        print(f"Error: {str(e)}")  # Log the error for debugging purposes
+
+
+
 @bot.command(name='h2h', help='Get the head-to-head record between two players')
 async def h2h(ctx, player1: str, player2: str):
     # Ensure the database connection
@@ -118,7 +183,14 @@ async def h2h(ctx, player1: str, player2: str):
             await ctx.send("No head-to-head record found between these players.")
             return
 
+        # change to default pfp if no PFP found in db
+        if record['player_one_pic'] is None:
+            record['player_one_pic'] = default_pfp
+        if record['player_two_pic'] is None:
+            record['player_two_pic'] = default_pfp
+
         merged_url = await merge_images(url1=record['player_one_pic'], url2=record['player_two_pic'], standard_size=(256, 256))
+        merged_url = generate_image_url(merged_url)
         # Constructing the record description based on player wins
         record_description = f"{record['player_one_name']} has a record of {record['player_one_wins']}-{record['player_two_wins']} against {record['player_two_name']} all-time."
 
@@ -134,37 +206,54 @@ async def h2h(ctx, player1: str, player2: str):
 
 
 async def fetch_h2h_record(connection, player1, player2):
-    # Get IDs and profile pictures for both players
-    player_query = """
-        SELECT player_id, name, profile_pic_url FROM Players WHERE name = $1 OR name = $2
-    """
-    players = await connection.fetch(player_query, player1, player2)
+    # Fetch player details for both players
+    players = await connection.fetch(
+        "SELECT player_id, name, profile_pic_url FROM Players WHERE name = $1 OR name = $2",
+        player1, player2
+    )
     if len(players) < 2:
-        return None  # If either player is not found, return None
+        return None  # Ensure both players are found
 
-    player1_data = next((p for p in players if p['name'].lower() == player1.lower()), None)
-    player2_data = next((p for p in players if p['name'].lower() == player2.lower()), None)
-    if not player1_data or not player2_data:
+    # Map player names to their data to ensure order
+    player_data = {p['name'].lower(): p for p in players}
+    player1_data = player_data.get(player1.lower())
+    player2_data = player_data.get(player2.lower())
+
+    # Fetch the H2H records
+    h2h_query = """
+        SELECT 
+            player_one_id, player_two_id, player_one_wins, player_two_wins
+        FROM H2H_Records
+        WHERE (player_one_id = $1 AND player_two_id = $2) 
+           OR (player_one_id = $2 AND player_two_id = $1)
+    """
+    record = await connection.fetchrow(h2h_query, player1_data['player_id'], player2_data['player_id'])
+    if not record:
         return None
 
-    # Fetch H2H records, considering both potential orderings of player IDs
-    query = """
-        SELECT 
-            p1.name as player_one_name, 
-            p2.name as player_two_name, 
-            h.player_one_wins, 
-            h.player_two_wins,
-            p1.profile_pic_url as player_one_pic,
-            p2.profile_pic_url as player_two_pic
-        FROM H2H_Records h
-        JOIN Players p1 ON h.player_one_id = p1.player_id
-        JOIN Players p2 ON h.player_two_id = p2.player_id
-        WHERE (h.player_one_id = $1 AND h.player_two_id = $2) 
-           OR (h.player_one_id = $2 AND h.player_two_id = $1)
-    """
-    record = await connection.fetchrow(query, player1_data['player_id'], player2_data['player_id'])
+    # Create a correctly ordered response based on input order, not player_id
+    response = {
+        'player_one_name': player1,
+        'player_two_name': player2,
+        'player_one_wins': None,
+        'player_two_wins': None,
+        'player_one_pic': player1_data['profile_pic_url'],
+        'player_two_pic': player2_data['profile_pic_url']
+    }
 
-    return record if record else None
+    # Assign wins based on the actual order in the database record
+    if player1_data['player_id'] == record['player_one_id']:
+        response['player_one_wins'] = record['player_one_wins']
+        response['player_two_wins'] = record['player_two_wins']
+    else:
+        response['player_one_wins'] = record['player_two_wins']
+        response['player_two_wins'] = record['player_one_wins']
+
+    return response
+
+
+
+
 
 async def merge_images(url1, url2, standard_size=(256, 256)):
 
@@ -189,15 +278,28 @@ async def merge_images(url1, url2, standard_size=(256, 256)):
 
 
 async def upload_to_cloud_storage(image_bytes, file_name):
-    """Uploads the image to a cloud storage and returns the URL."""
-    blob = bucket.blob(file_name)
-    blob.upload_from_string(image_bytes, content_type='image/png')
+    """Uploads the image to a cloud storage within the 'merged/' directory and returns the URL."""
+    # Prefix the file name with 'merged/' to store it in the correct folder
+    merged_file_name = f"merged/{file_name}"
+    
+    # Create a blob in the bucket at the specified path
+    blob = bucket.blob(merged_file_name)
+    blob.upload_from_string(image_bytes, content_type='image/png')  # Assuming content type is JPEG
+
+    # Set cache control settings
+    blob.cache_control = "no-cache, max-age=0"
+    blob.patch()  # Apply the cache control settings
+
+    # Construct and return the public URL for the uploaded image
     public_url = f"https://storage.googleapis.com/{bucket.name}/{blob.name}"
-    print("sent to cloud")
+    print(public_url)
     return public_url
 
 
 
+def generate_image_url(base_url):
+    timestamp = int(time.time())
+    return f"{base_url}?v={timestamp}"
 
 
 

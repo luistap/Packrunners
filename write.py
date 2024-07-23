@@ -48,19 +48,20 @@ async def insert_match(connection, map_id, match_type_id, score):
 
 async def process_team_stats(connection, match_id, team_info, team_score, opponent_score):
     """Insert player stats and update aggregate stats for each player."""
+    result = 'w' if team_score > opponent_score else 'l'
     for player_name, stats in team_info.items():
         player_id = await ensure_exists(connection, 'Players', 'name', player_name, 'player_id')
         kills, deaths, assists = stats
-        await insert_player_stats(connection, player_id, match_id, kills, deaths, assists)
+        await insert_player_stats(connection, player_id, match_id, kills, deaths, assists, result)
         await update_player_aggregate_stats(connection, player_id, kills, deaths, assists, team_score, opponent_score)
 
-async def insert_player_stats(connection, player_id, match_id, kills, deaths, assists):
+async def insert_player_stats(connection, player_id, match_id, kills, deaths, assists, result):
     """Insert player stats for a single match."""
     query = """
-        INSERT INTO Player_Stats (player_id, match_id, kills, deaths, assists)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO Player_Stats (player_id, match_id, kills, deaths, assists, result)
+        VALUES ($1, $2, $3, $4, $5, $6)
     """
-    await connection.execute(query, player_id, match_id, kills, deaths, assists)
+    await connection.execute(query, player_id, match_id, kills, deaths, assists, result)
 
 async def update_player_aggregate_stats(connection, player_id, kills, deaths, assists, wins, losses):
     """Update aggregate stats for a player."""
