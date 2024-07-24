@@ -129,13 +129,18 @@ def save_image(image_data, label):
         image_file.write(image_data)
     return file_path
 
+@app.get("/ping")
+def ping():
+    return {"message": "pong"}
+
+
 async def main():
 
     asyncio.create_task(cleanup_codes())
     # Create a task for the bot
     bot_task = asyncio.create_task(start_bot())
     # Start the FastAPI app
-    config = uvicorn.Config(app, host="127.0.0.1", port=8000)
+    config = uvicorn.Config(app, host="0.0.0.0", port=8000)
     server = uvicorn.Server(config)
     await server.serve()
     # Wait for the bot task to finish (it generally won't unless there's an error or shutdown)
