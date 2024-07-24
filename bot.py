@@ -43,12 +43,17 @@ correction_completed_event = asyncio.Event()
 pool = None
 
 async def init_db():
+
     global pool
     try:
+        print("DB_NAME:", os.getenv('DB_NAME'))
+        print("USER:", os.getenv('USER'))
+        print("PASSWORD:", os.getenv('PASSWORD'))
+        print("HOST_NAME:", os.getenv('HOST_NAME'))
         pool = await asyncpg.create_pool(
             database= os.getenv('DB_NAME'),
-            user= os.getenv('USER'),
-            password= os.getenv('PASSWORD'),
+            user= os.getenv('PGUSER'),
+            password= os.getenv('PGPASSWORD'),
             host= os.getenv('HOST_NAME'),
             ssl="require"
         )

@@ -6,12 +6,12 @@ import cloudinary.api
 import requests
 import os
 import re
+import asyncpg
+import bot
 from fuzzywuzzy import process
 from psycopg2 import OperationalError
 from google.cloud import vision
 from dotenv import load_dotenv
-import asyncpg
-import bot
 
 load_dotenv()
 
