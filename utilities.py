@@ -9,14 +9,17 @@ import re
 from fuzzywuzzy import process
 from psycopg2 import OperationalError
 from google.cloud import vision
+from dotenv import load_dotenv
 import asyncpg
 import bot
 
+load_dotenv()
+
 # Configure your Cloudinary credentials
 cloudinary.config(
-    cloud_name="degzpxhjw",  # Your cloud name
-    api_key="396329727495689",  # Your API key
-    api_secret="iMxbks6PueFT0oa8nUd1NOR7ARo"  # Your API secret
+    cloud_name= os.getenv('CLOUD_NAME'),  # Your cloud name
+    api_key= os.getenv('API_KEY'),  # Your API key
+    api_secret= os.getenv('API_SECRET'),  # Your API secret
 )
 
 
@@ -25,6 +28,7 @@ LOW_CONFIDENCE = 50
 
 # Set up Google Vision API client
 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'packrunners.json'
+
 client = vision.ImageAnnotatorClient()
 
 def detect_text_path(image_path):
@@ -99,10 +103,10 @@ def process_team(names_path : str, stats_path : str, team_dict : dict):
 async def create_connection():
     try:
         conn = await asyncpg.connect(
-            database="packrunnerDB",
-            user="packrunnerDB_owner",
-            password="GXJyfgEB23nj",
-            host="ep-hidden-king-a5h5vm2e.us-east-2.aws.neon.tech",
+            database= os.getenv('DB_NAME'),
+            user= os.getenv('USER'),
+            password= os.getenv('PASSWORD'),
+            host= os.getenv('HOST_NAME'),
             ssl="require"
         )
         print("Connection to the PostgreSQL database successful")

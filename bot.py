@@ -18,19 +18,20 @@ import requests
 from PIL import Image
 from io import BytesIO
 import time
-from imageio import imread
 
 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'packrunners.json'
+load_dotenv()
 
 # Initialize the Google Cloud Storage client
 client = storage.Client()
-bucket = client.bucket('discord_imports')
+bucket_name = os.getenv('BUCKET_NAME')
+bucket = client.bucket(bucket_name)
 
-load_dotenv()
+
 token = os.getenv('TOKEN')
 channel_send = 880977932892385330
 
-default_pfp = 'https://storage.googleapis.com/discord_imports/default.png'
+default_pfp = os.getenv('DEFAULT_PFP')
 
 intents = discord.Intents.default()
 intents.messages = True
@@ -45,10 +46,10 @@ async def init_db():
     global pool
     try:
         pool = await asyncpg.create_pool(
-            database="packrunnerDB",
-            user="packrunnerDB_owner",
-            password="GXJyfgEB23nj",
-            host="ep-hidden-king-a5h5vm2e.us-east-2.aws.neon.tech",
+            database= os.getenv('DB_NAME'),
+            user= os.getenv('USER'),
+            password= os.getenv('PASSWORD'),
+            host= os.getenv('HOST_NAME'),
             ssl="require"
         )
         print("Connection pool created successfully")
@@ -87,12 +88,34 @@ async def on_close():
         await pool.close()
         print("Connection pool closed")
 
-
-
-
 # Define a function to start the bot
 async def start_bot():
     await bot.start(token)
+
+@bot.command(name='list', help='Lists all registered player names in multiple embeds')
+async def list_players(ctx):
+    async with pool.acquire() as connection:
+        player_names = await connection.fetch("SELECT name FROM Players ORDER BY name ASC")
+        player_names = [p['name'] for p in player_names]
+
+    names_per_embed = 25  # Adjust this number based on your preference for embed density
+    embeds = []
+
+    for i in range(0, len(player_names), names_per_embed):
+        embed = discord.Embed(
+            title="Registered Player Names",
+            description="\n".join(player_names[i:i + names_per_embed]),
+            color=discord.Color.blue()
+        )
+        embed.set_footer(text=f"Showing names {i+1} to {min(i+names_per_embed, len(player_names))} of {len(player_names)}")
+        embeds.append(embed)
+
+    # Send all embeds in a sequence
+    for embed in embeds:
+        await ctx.reply(embed=embed, mention_author=True)
+
+
+
 
 
 async def post_match_summary(team1_info, team2_info, gen_info):
@@ -174,8 +197,27 @@ async def map_stats(ctx, player: str, map_name: str):
 
 @bot.command(name='h2h', help='Get the head-to-head record between two players')
 async def h2h(ctx, player1: str, player2: str):
+
     # Ensure the database connection
     async with pool.acquire() as connection:
+
+        # do these players exist?
+        player1_exists = await botutils.check_player_exists(pool, player1)
+        player2_exists = await botutils.check_player_exists(pool, player2)
+
+        if not player1_exists or not player2_exists:
+
+            player_name = player1 if not player1_exists else player2
+            # Create an embed message
+            embed = discord.Embed(
+                title="Player Check",
+                description=f"Player name `{player_name}` does not exist in the database.",
+                color=discord.Color.red()  # Red color to indicate an issue or non-existence
+            )
+            embed.set_footer(text="Try checking the spelling or adding them if they're new.")
+            await ctx.send(embed=embed)
+            return
+
         # Fetch the H2H record
         record = await fetch_h2h_record(connection, player1, player2)
 
@@ -202,7 +244,7 @@ async def h2h(ctx, player1: str, player2: str):
         )
         embed.set_image(url=merged_url) 
 
-        await ctx.send(embed=embed)
+        await ctx.reply(embed=embed, mention_author=True)
 
 
 async def fetch_h2h_record(connection, player1, player2):
@@ -250,9 +292,6 @@ async def fetch_h2h_record(connection, player1, player2):
         response['player_two_wins'] = record['player_one_wins']
 
     return response
-
-
-
 
 
 async def merge_images(url1, url2, standard_size=(256, 256)):
@@ -303,32 +342,72 @@ def generate_image_url(base_url):
 
 
 
-@bot.command(name='player', help='Get player stats')
+@bot.command(name='player', help='Displays general statistics of a player')
 async def player_stats(ctx, player_name: str):
-    try:
-        async with pool.acquire() as conn:
-            async with conn.transaction():
-                # Assuming you have a table called 'player_stats' with columns 'name', 'kills', 'deaths', etc.
-                query = "SELECT name, kills, deaths, assists FROM player_stats WHERE name = $1"
-                result = await conn.fetchrow(query, player_name)
+    async with pool.acquire() as connection:
+        query = """
+        SELECT 
+            P.profile_pic_url,
+            COALESCE(SUM(PS.kills), 0) AS total_kills,
+            COALESCE(SUM(PS.deaths), 0) AS total_deaths,
+            COUNT(PS.player_id) AS matches_played,
+            COALESCE(SUM(CASE WHEN PS.result = 'w' THEN 1 ELSE 0 END), 0) AS matches_won,
+            COALESCE(SUM(CASE WHEN PS.result = 'l' THEN 1 ELSE 0 END), 0) AS matches_lost,
+            COALESCE(SUM(PS.assists), 0) AS total_assists
+        FROM Players P
+        LEFT JOIN Player_Stats PS ON P.player_id = PS.player_id
+        WHERE P.name = $1
+        GROUP BY P.profile_pic_url;
+        """
+        player = await connection.fetchrow(query, player_name)
 
-                if result:
-                    message = (f"Stats for {result['name']}:\n"
-                               f"Kills: {result['kills']}\n"
-                               f"Deaths: {result['deaths']}\n"
-                               f"Assists: {result['assists']}")
-                else:
-                    message = f"No stats found for {player_name}."
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        message = "Failed to fetch player stats."
+        if not player:
+            await ctx.send("Player not found.")
+            return
 
-    await ctx.send(message)
+        kd_ratio = player['total_kills'] / player['total_deaths'] if player['total_deaths'] > 0 else float(player['total_kills'])
+        win_rate = (player['matches_won'] / player['matches_played'] * 100) if player['matches_played'] > 0 else 0
+        assists_per_game = player['total_assists'] / player['matches_played'] if player['matches_played'] > 0 else 0
+
+        # Use monospaced font for alignment
+        stats_description = (
+            f"**Overall KD:** ```{kd_ratio:.2f}```\n"
+            f"**Win Rate:** ```{win_rate:.1f}%```\n"
+            f"**Total Maps Played:** ```{player['matches_played']}```\n"
+            f"**Assists Per Game:** ```{assists_per_game:.1f}```"
+        )
+
+        # Create the embed
+        embed = discord.Embed(
+            title=f"Player Statistics for {player_name}",
+            description=stats_description,
+            color=discord.Color.red()
+        )
+        embed.set_thumbnail(url=player['profile_pic_url'])
+        embed.set_footer(text="Statistics are updated in real-time based on available data.")
+
+        await ctx.reply(embed=embed, mention_author=True)
+
+
+
 
 
 
 @bot.command(name='pfp', help='Upload a new profile picture')
 async def upload_pfp(ctx, player_name: str):
+
+    # does the username exist?
+    if not await botutils.check_player_exists(pool, player_name):
+        # Create an embed message
+        embed = discord.Embed(
+            title="Player Check",
+            description=f"Player name `{player_name}` does not exist in the database.",
+            color=discord.Color.red()  # Red color to indicate an issue or non-existence
+        )
+        embed.set_footer(text="Try checking the spelling or adding them if they're new.")
+        await ctx.send(embed=embed)
+        return
+
     # Inform the user and start a DM session
     if ctx.author.dm_channel is None:
         await ctx.author.create_dm()
