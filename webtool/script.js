@@ -149,7 +149,7 @@ document.addEventListener("DOMContentLoaded", function() {
     async function submitImage(formData) {
         console.log('Attempting to submit to backend');
         try {
-            const response = await fetch('http://18.217.63.193:8000/upload/', {
+            const response = await fetch('http://127.0.0.1:8000/upload/', {
                 method: 'POST',
                 body: formData
             });

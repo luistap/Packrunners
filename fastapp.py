@@ -44,6 +44,7 @@ async def cleanup_codes(interval: int = 300):
 async def store_access_code(data: AccessCodeData):
     expiration_time = datetime.datetime.now() + datetime.timedelta(minutes=5)
     codes[data.access_code] = {'user_id': data.user_id, 'expires': expiration_time}
+    print(codes[data.access_code])
     return {"message": "Access code stored"}
 
 
