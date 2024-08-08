@@ -149,7 +149,7 @@ document.addEventListener("DOMContentLoaded", function() {
     async function submitImage(formData) {
         console.log('Attempting to submit to backend');
         try {
-            const response = await fetch('https://18.217.63.193:443/upload/', {
+            const response = await fetch('https://prstats-b.onrender.com/upload/', {
                 method: 'POST',
                 body: formData
             });
